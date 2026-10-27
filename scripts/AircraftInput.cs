@@ -2,7 +2,7 @@ using Godot;
 
 public partial class AircraftInput : Node
 {
-    [Export] public float Response = 6f;
+    [Export] public float Response = 4f;
     [Export] public float ThrottleRate = 0.4f;
 
     public float Pitch { get; private set; }

@@ -2,10 +2,31 @@ using Godot;
 
 public partial class Aircraft : RigidBody3D
 {
-    [Export] public bool DebugFreeFly = true;
+    //DEBUG
+    [Export] public bool DebugFreeFly = false;
     [Export] public float DebugMaxSpeed = 60f;
+    
+    //PROPULSION
+    [Export] public float EnginePower = 170000f; //Watts (about 230hp)
+    [Export] public float PropEfficiency = 0.8f;
+    [Export] public float StaticThrust = 3000f; //Newtons
+
+    public float Thrust { get; private set; }
+
+    //AERODYNAMICS
+    [Export] public float WingArea = 16f; //m^2
+    [Export] public float CL0 = 0.3f;
+    [Export] public float CLSlope = 5f; //per radian
+    [Export] public float CLMax = 1.6f; //temporary cap
+    [Export] public float CD0 = 0.03f; //zero-lift drag
+    [Export] public float InducedDragK = 0.055f;
+
+    public float Lift { get; private set; }
+    public float Drag { get; private set; }
+    public float CL { get; private set; }
 
     public AircraftInput Controls { get; private set; }
+    public AirData Air { get; private set; }
 
     public override void _Ready()
     {
@@ -15,6 +36,12 @@ public partial class Aircraft : RigidBody3D
         AddChild(Controls);
 
         BuildPlaceholder();
+
+        LinearDampMode = DampMode.Replace;
+        LinearDamp = 0f;
+
+        AngularDampMode = DampMode.Replace;
+        AngularDamp = 0f;
 
         FreezeMode = FreezeModeEnum.Kinematic;
         Freeze = DebugFreeFly;
@@ -46,8 +73,20 @@ public partial class Aircraft : RigidBody3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (!DebugFreeFly) return;
+        Air = AirData.Compute(GlobalBasis, LinearVelocity, Vector3.Zero);
 
+        if (DebugFreeFly)
+        {
+            DebugFly(delta);
+            return;
+        }
+
+        ApplyThrust();
+        ApplyAerodynamics();
+    }
+
+    void DebugFly(double delta)
+    {
         float dt = (float)delta;
         Transform3D t = GlobalTransform;
         Basis b = t.Basis;
@@ -60,5 +99,36 @@ public partial class Aircraft : RigidBody3D
         Vector3 forward = -b.Z;
         Vector3 origin = t.Origin + forward * DebugMaxSpeed * Controls.Throttle * dt;
         GlobalTransform = new Transform3D(b, origin);
+    }
+
+    void ApplyThrust()
+    {
+        float forwardSpeed = -Air.LocalVelocity.Z;
+        Thrust = Propulsion.Thrust(Controls.Throttle, forwardSpeed,
+            EnginePower, PropEfficiency, StaticThrust);
+        ApplyCentralForce(-GlobalBasis.Z * Thrust);
+    }
+
+    void ApplyAerodynamics()
+    {
+        if (Air.Airspeed < 0.5f)
+        {
+            Lift = 0f; Drag = 0f; CL = 0f;
+            return;
+        }
+
+        Vector3 flowDir = Air.Relative / Air.Airspeed;
+        float q = Aero.DynamicPressure(Air.Airspeed);
+
+        CL = Aero.LiftCoefficient(Air.AoA, CL0, CLSlope, CLMax);
+        float cd = Aero.DragCoefficient(CL, CD0, InducedDragK);
+
+        Lift = q * WingArea * CL;
+        Drag = q * WingArea * cd;
+
+        Vector3 liftDir = GlobalBasis.X.Cross(flowDir).Normalized();
+
+        ApplyCentralForce(liftDir * Lift);
+        ApplyCentralForce(-flowDir * Drag);
     }
 }

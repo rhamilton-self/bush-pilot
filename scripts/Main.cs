@@ -10,8 +10,9 @@ public partial class Main : Node3D
 		BuildGround();
 		BuildPillars();
 		
-		var aircraft = new Aircraft { Position = new Vector3(0, 30, 0) };
+		var aircraft = new Aircraft { Position = new Vector3(0, 300, 0) };
 		AddChild(aircraft);
+		aircraft.LinearVelocity = -aircraft.GlobalBasis.Z * 40f;
 
 		AddChild(new CameraRig { Target = aircraft });
 		AddChild(new DebugHud { Aircraft = aircraft });
