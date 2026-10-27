@@ -9,8 +9,12 @@ public partial class Main : Node3D
 		BuildEnvironment();
 		BuildGround();
 		BuildPillars();
-		AddTempCamera();
-		AddChild(new Aircraft { Position = new Vector3(0, 30, 0) });
+		
+		var aircraft = new Aircraft { Position = new Vector3(0, 30, 0) };
+		AddChild(aircraft);
+
+		AddChild(new CameraRig { Target = aircraft });
+		AddChild(new DebugHud { Aircraft = aircraft });
 	}
 
 	void BuildEnvironment()
@@ -64,15 +68,6 @@ public partial class Main : Node3D
 				MaterialOverride = mat
 			});
 		}
-	}
-
-	void AddTempCamera()
-	{
-		AddChild(new Camera3D
-		{
-			Position = new Vector3(0,30,80),
-			Far = 8000f
-		});
 	}
 }
 
