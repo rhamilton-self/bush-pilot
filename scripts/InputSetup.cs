@@ -18,6 +18,7 @@ public static class InputSetup
 		AddKey("brake", Key.Space);
 		AddKey("toggle_camera", Key.C);
 		AddKey("reset_flight", Key.Backspace);
+		AddKey("reset_air", Key.Delete);
 
 		// Gamepad
 		AddAxis("pitch_up", JoyAxis.LeftY, 1f);      // stick back = nose up

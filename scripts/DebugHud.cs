@@ -15,6 +15,9 @@ public partial class DebugHud : CanvasLayer
     public override void _Process(double delta)
     {
         var c = Aircraft.Controls;
+        string gear = "";
+        foreach (var w in Aircraft.Wheels)
+            gear += $"{w.Load,7:0}";
         _label.Text = 
             $"Pitch    {c.Pitch,6:0.00}\n" +
             $"Roll     {c.Roll,6:0.00}\n" +
@@ -22,6 +25,9 @@ public partial class DebugHud : CanvasLayer
             $"Throttle {c.Throttle * 100,5:0}%\n" +
             $"Flaps    {c.Flaps}  ({Aircraft.FlapPosition * 100,3:0}%)\n" +            
             $"Brake    {c.Brake,6:0.00}\n" +
+            $"Gear (N) {gear}\n" +
+            $"Gnd spd  {Aircraft.LinearVelocity.Length(),6:0.0} m/s\n" +
+            $"On ground {(Aircraft.OnGround ? "yes" : "no")}\n" +
             $"Altitude {Aircraft.GlobalPosition.Y,6:0} m\n" +
             $"Airspeed {Aircraft.Air.Airspeed,6:0.0} m/s\n" +
             $"Thrust   {Aircraft.Thrust,6:0} N\n" +

@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Godot;
 
 public partial class Main : Node3D
@@ -8,11 +7,11 @@ public partial class Main : Node3D
 		InputSetup.Register();
 		BuildEnvironment();
 		BuildGround();
+		BuildRunway();
 		BuildPillars();
 		
-		var aircraft = new Aircraft { Position = new Vector3(0, 300, 0) };
+		var aircraft = new Aircraft { Position = new Vector3(0, 1.5f, 300) };
 		AddChild(aircraft);
-		aircraft.LinearVelocity = -aircraft.GlobalBasis.Z * 40f;
 
 		AddChild(new CameraRig { Target = aircraft });
 		AddChild(new DebugHud { Aircraft = aircraft });
@@ -62,11 +61,38 @@ public partial class Main : Node3D
 		for (int i = 0; i < 250; i++)
 		{
 			float h = rng.RandfRange(5f, 40f);
+			var size = new Vector3(rng.RandfRange(4f, 12f), h, rng.RandfRange(4f, 12f));
+			float x = rng.RandfRange(-2500, 2500);
+			float z = rng.RandfRange(-2500, 2500);
+
+			if (Mathf.Abs(x) < 80f && Mathf.Abs(z) < 600f) continue;
+
 			AddChild(new MeshInstance3D
 			{
-				Mesh = new BoxMesh { Size = new Vector3(rng.RandfRange(4f, 12f), h, rng.RandfRange(4f, 12f)) },
-				Position = new Vector3(rng.RandfRange(-2500, 2500), h / 2f, rng.RandfRange(-2500, 2500)),
+				Mesh = new BoxMesh { Size = size },
+				Position = new Vector3(x, h / 2f, z),
 				MaterialOverride = mat
+			});
+		}
+	}
+
+	void BuildRunway()
+	{
+		AddChild(new MeshInstance3D
+		{
+			Mesh = new PlaneMesh { Size = new Vector2(20, 700) },
+			Position = new Vector3(0, 0.02f, 0),
+			MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.2f, 0.2f, 0.22f) }
+		});
+
+		var paint = new StandardMaterial3D { AlbedoColor = new Color(0.9f, 0.9f, 0.9f) };
+		for (int i = -16; i <= 16; i++)
+		{
+			AddChild(new MeshInstance3D
+			{
+				Mesh = new PlaneMesh { Size = new Vector2(0.6f, 8f)},
+				Position = new Vector3(0, 0.03f, i * 20f),
+				MaterialOverride = paint
 			});
 		}
 	}

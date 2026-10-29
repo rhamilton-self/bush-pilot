@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 public partial class Aircraft : RigidBody3D
 {
@@ -47,6 +48,19 @@ public partial class Aircraft : RigidBody3D
     [Export] public float StallDragGain = 3.5f;
     [Export] public float StallHysteresisDeg = 5f;
 
+    [Export] public float SuspensionLength = 0.6f;
+    [Export] public float WheelRadius = 0.35f;
+    [Export] public float TireGrip = 4000f;          // N per m/s of sliding speed
+    [Export] public float TireMu = 0.8f;             // max friction coefficient (dry ground)
+    [Export] public float RollingResistance = 0.03f;
+    [Export] public float BrakeMu = 0.6f;
+    [Export] public float MaxSteerDeg = 35f;
+
+    readonly List<Wheel> _wheels = new List<Wheel>();
+    Godot.Collections.Array<Rid> _rayExclude;
+
+    public IReadOnlyList<Wheel> Wheels => _wheels;
+
     bool _stalled;
 
     float EffectiveStallAoA => Mathf.DegToRad(StallAoADeg - FlapStallReductionDeg * FlapPosition);
@@ -63,6 +77,17 @@ public partial class Aircraft : RigidBody3D
     public AirData Air { get; private set; }
 
     bool _resetRequested;
+    bool _resetToRunway;
+
+    public bool OnGround
+    {
+        get
+        {
+            foreach (var w in _wheels)
+                if (w.Grounded) return true;
+            return false;
+        }
+    }
 
     public override void _Ready()
     {
@@ -72,6 +97,11 @@ public partial class Aircraft : RigidBody3D
         AddChild(Controls);
 
         BuildPlaceholder();
+        BuildWheels();
+        _rayExclude = new Godot.Collections.Array<Rid> { GetRid() };
+
+        CenterOfMassMode = CenterOfMassModeEnum.Custom;
+        CenterOfMass = Vector3.Zero;
 
         LinearDampMode = DampMode.Replace;
         LinearDamp = 0f;
@@ -96,7 +126,31 @@ public partial class Aircraft : RigidBody3D
         AddBox(new Vector3(0.15f, 1.4f, 1f),  new Vector3(0, 1f, 3.2f),    trim); // fin
         AddBox(new Vector3(0.8f, 0.8f, 0.6f), new Vector3(0, 0, -3.5f),    new Color(1f, 0.8f, 0.1f)); // nose marker
 
-        AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(11f, 1.2f, 7f) } });
+        AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(1.2f, 1.2f, 7f) } });
+        AddChild(new CollisionShape3D
+        {
+            Shape = new BoxShape3D { Size = new Vector3(11f, 0.2f, 1.6f) },
+            Position = new Vector3(0, 0.3f, -0.5f)
+        });
+    }
+
+    void BuildWheels()
+    {
+        _wheels.Add(new Wheel { Mount = new Vector3(-1.6f, -0.5f, 0.5f), Stiffness = 22500f, Damping = 4000f, Braked = true });
+        _wheels.Add(new Wheel { Mount = new Vector3(1.6f, -0.5f, 0.5f), Stiffness = 22500f, Damping = 4000f, Braked = true });
+        _wheels.Add(new Wheel { Mount = new Vector3(0.0f, -0.5f, -2.5f), Stiffness = 9000f, Damping = 1600f, Steerable = true });
+
+        foreach (var w in _wheels)
+        {
+            var mesh = new MeshInstance3D
+            {
+                Mesh = new CylinderMesh { TopRadius = WheelRadius, BottomRadius = WheelRadius, Height = 0.25f },
+                RotationDegrees = new Vector3(0, 0, 90),
+                MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.1f, 0.1f, 0.1f) } 
+            };
+            AddChild(mesh);
+            w.Visual = mesh;
+        }
     }
 
     void AddBox(Vector3 size, Vector3 pos, Color color)
@@ -111,7 +165,9 @@ public partial class Aircraft : RigidBody3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Input.IsActionJustPressed("reset_flight")) _resetRequested = true;
+        if (Input.IsActionJustPressed("reset_flight")) { _resetRequested = true; _resetToRunway = true; }
+        if (Input.IsActionJustPressed("reset_air")) { _resetRequested = true; _resetToRunway = false; }
+        
         Air = AirData.Compute(GlobalBasis, LinearVelocity, Vector3.Zero);
 
         if (DebugFreeFly)
@@ -121,6 +177,8 @@ public partial class Aircraft : RigidBody3D
         }
 
         UpdateFlaps((float)delta);
+        ApplySuspension();
+        ApplyTireForces();
         ApplyThrust();
         ApplyAerodynamics();
         ApplyControlTorques();
@@ -215,6 +273,84 @@ public partial class Aircraft : RigidBody3D
         ApplyTorque(GlobalBasis * (shake * q * intensity * BuffetStrength));
     }
 
+    void ApplySuspension()
+    {
+        var space = GetWorld3D().DirectSpaceState;
+        float reach = SuspensionLength + WheelRadius;
+
+        foreach (var w in _wheels)
+        {
+            Vector3 from = GlobalTransform * w.Mount;
+            Vector3 to = from - GlobalBasis.Y * reach;
+
+            var query = PhysicsRayQueryParameters3D.Create(from,to);
+            query.Exclude = _rayExclude;
+            var hit = space.IntersectRay(query);
+
+            float distance = reach;
+            w.Grounded = hit.Count > 0;
+
+            if (w.Grounded)
+            {
+                Vector3 point = (Vector3)hit["position"];
+                Vector3 normal = (Vector3)hit["normal"];
+                distance = from.DistanceTo(point);
+
+                w.Compression = reach - distance;
+
+                Vector3 r = point - GlobalPosition;
+                Vector3 pointVelocity = LinearVelocity + AngularVelocity.Cross(r);
+                float normalVelocity = pointVelocity.Dot(normal);
+
+                w.Load = Mathf.Max(0f, w.Stiffness * w.Compression - w.Damping * normalVelocity);
+                ApplyForce(normal * w.Load, r);
+
+                w.ContactPoint = point;
+                w.ContactNormal = normal;
+            }
+            else
+            {
+                w.Compression = 0f;
+                w.Load = 0f;
+            }
+
+            w.Visual.Position = w.Mount + new Vector3(0f, -(distance - WheelRadius), 0f);
+        }
+    }
+
+    void ApplyTireForces()
+    {
+        float steerScale = Mathf.Clamp(1f - LinearVelocity.Length() / 30f, 0.2f, 1f);
+        float steerAngle = -Controls.Yaw * Mathf.DegToRad(MaxSteerDeg) * steerScale;
+
+        foreach (var w in _wheels)
+        {
+            float angle = w.Steerable ? steerAngle : 0f;
+            w.Visual.Rotation = new Vector3(0f, angle, Mathf.Pi / 2);
+
+            if (!w.Grounded) continue;
+
+            Vector3 n = w.ContactNormal;
+            Vector3 r = w.ContactPoint - GlobalPosition;
+            Vector3 v = LinearVelocity + AngularVelocity.Cross(r);
+
+            Vector3 wheelForward = GlobalBasis * (new Basis(Vector3.Up, angle) * Vector3.Forward);
+            wheelForward = (wheelForward - n * wheelForward.Dot(n)).Normalized();
+            Vector3 wheelSide = wheelForward.Cross(n);
+
+            float vLong = v.Dot(wheelForward);
+            float vLat = v.Dot(wheelSide);
+
+            float maxLat = TireMu * w.Load;
+            float maxLong = (RollingResistance + (w.Braked ? Controls.Brake * BrakeMu : 0f)) * w.Load;
+
+            float fLat = Mathf.Clamp(-vLat * TireGrip, -maxLat, maxLat);
+            float fLong = Mathf.Clamp(-vLong * TireGrip, -maxLong, maxLong);
+
+            ApplyForce(wheelForward * fLong + wheelSide * fLat, r);
+        }
+    }
+
     void UpdateFlaps(float dt)
     {
         float target = Controls.Flaps / (float)AircraftInput.MaxFlaps;
@@ -226,8 +362,11 @@ public partial class Aircraft : RigidBody3D
         if (!_resetRequested) return;
         _resetRequested = false;
 
-        state.Transform = new Transform3D(Basis.Identity, new Vector3(0,300,0));
-        state.LinearVelocity = new Vector3(0, 0, -45f);
+        Vector3 pos = _resetToRunway ? new Vector3(0, 1.3f, 300) : new Vector3(0,300,0);
+        Vector3 vel = _resetToRunway ? Vector3.Zero : new Vector3(0, 0, -45f);
+
+        state.Transform = new Transform3D(Basis.Identity, pos);
+        state.LinearVelocity = vel;
         state.AngularVelocity = Vector3.Zero;
     }
 }
