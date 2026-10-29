@@ -17,6 +17,7 @@ public static class InputSetup
 		AddKey("flaps_down", Key.F);
 		AddKey("brake", Key.Space);
 		AddKey("toggle_camera", Key.C);
+		AddKey("reset_flight", Key.Backspace);
 
 		// Gamepad
 		AddAxis("pitch_up", JoyAxis.LeftY, 1f);      // stick back = nose up
@@ -31,6 +32,7 @@ public static class InputSetup
 		AddButton("flaps_down", JoyButton.DpadDown);
 		AddButton("brake", JoyButton.A);
 		AddButton("toggle_camera", JoyButton.Y);
+		AddButton("reset_flight", JoyButton.Back);
 	}
 
 	static void Ensure(string action)

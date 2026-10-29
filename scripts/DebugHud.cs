@@ -20,7 +20,7 @@ public partial class DebugHud : CanvasLayer
             $"Roll     {c.Roll,6:0.00}\n" +
             $"Yaw      {c.Yaw,6:0.00}\n" +
             $"Throttle {c.Throttle * 100,5:0}%\n" +
-            $"Flaps    {c.Flaps}\n" +
+            $"Flaps    {c.Flaps}  ({Aircraft.FlapPosition * 100,3:0}%)\n" +            
             $"Brake    {c.Brake,6:0.00}\n" +
             $"Altitude {Aircraft.GlobalPosition.Y,6:0} m\n" +
             $"Airspeed {Aircraft.Air.Airspeed,6:0.0} m/s\n" +
@@ -31,6 +31,9 @@ public partial class DebugHud : CanvasLayer
             $"Lift     {Aircraft.Lift,6:0} N\n" +
             $"Drag     {Aircraft.Drag,6:0} N\n" +
             $"CL       {Aircraft.CL,6:0.00}\n" +
+            $"Pitch att {Mathf.RadToDeg(Mathf.Asin(-Aircraft.GlobalBasis.Z.Y)),5:0} deg\n" +
+            $"Bank      {Mathf.RadToDeg(Mathf.Asin(-Aircraft.GlobalBasis.X.Y)),5:0} deg\n" +
+            $"Stall     {Aircraft.StallFactor,5:0.00}   {(Aircraft.StallWarning ? "<< STALL WARNING >>" : "")}\n" +
             $"FPS      {Engine.GetFramesPerSecond()}";
     }
 }
