@@ -1,6 +1,8 @@
 # Bush/Cargo Pilot Sim: Project Brief and 12-Phase Plan
 
 > **For Claude (read first):** This file is context carried over from an earlier chat. The user is building this project in Godot 4 (.NET) with C#. It is their first major project. They prefer **extremely brief explanations, minimal pleasantries, only information that adds to the discussion.** Do not expand scope. When asked about a specific phase, focus on that phase's section, respect the decisions below, and update the Progress Log if the user reports status.
+>
+> **Teaching format (important):** This is a **tutorial**, not a "Claude writes the project" process. The user types all code themselves. Work one small step at a time: short explanation of what and why, a code block, brief notes on what each part does, then a checkpoint describing what they should see. Never dump whole script files or generate files for them to copy in. Wait for the user to confirm each checkpoint before the next step. Fix mistakes plainly (the user caught a sign error in roll earlier).
 
 ---
 
@@ -19,6 +21,8 @@ A career bush/cargo pilot game. The player flies contracts between small airstri
 - Original idea was a tactical CQC shooter (injury, ragdolls, destructible terrain). Judged **too complex for a first project** and shelved. It remains a possible future project.
 - Pilot sim chosen because it has one core loop, mostly scales by adding content, and stylised visuals hide a lot.
 - Competition exists, but arcade-leaning-to-simcade bush flying with a strong economy loop is less served than full sims.
+- Timeline is phase-based, not calendar-based. The user is progressing faster than the original week estimates, so dates are ignored. Order and the phase 3 gate are what matter.
+- Flight feel was tuned by feel and is "close enough". The user plans to re-tune once there is terrain and more game to judge against.
 
 ## 3. Tech Stack and Setup
 
@@ -47,12 +51,14 @@ res://
   assets/        (placeholder models, audio)
 ```
 
+*Actual state:* all scripts currently sit flat in `res://scripts/` and the world is built in code from `Main.cs`. Reorganising into the structure above is optional and can wait until the aircraft becomes a data-driven resource (phase 10).
+
 ## 5. Flight Model Notes (for phases 2-4)
 
 - Lift: `L = 0.5 * rho * V^2 * S * CL(alpha)`
 - Drag: `D = 0.5 * rho * V^2 * S * CD(alpha)` (parasitic + induced)
-- `CL(alpha)`: roughly linear up to critical AoA, then drops sharply (stall). Use an `AnimationCurve`/`Curve` exported for tuning.
-- Use **airspeed relative to the air mass** (groundspeed minus wind) for all aerodynamic forces. This is what makes wind matter.
+- `CL(alpha)`: roughly linear up to critical AoA, then drops sharply (stall). Implemented as a smoothstep blend to a flat-plate curve, with hysteresis.
+- Use **airspeed relative to the air mass** (groundspeed minus wind) for all aerodynamic forces. This is what makes wind matter. `AirData.Compute` already takes a wind vector (currently `Vector3.Zero`).
 - Control surfaces contribute torque proportional to deflection x dynamic pressure. Include a simple damping term to avoid wobble.
 - Propwash over tail/wing: boost airflow at low speed and high throttle, which helps low-speed control.
 - Ground effect: increase lift and reduce induced drag within about one wingspan of the ground.
@@ -140,6 +146,10 @@ res://
 - Large detailed map
 - Multiplayer
 - Full systems simulation (engine failures, electrics, etc.)
+- Pitch trim control (rate-based input like throttle, about 10 lines; offered, not yet added)
+- Wing drop in stalls (one wing stalling first)
+- Strut bottoming-out model for very hard landings
+- Tailwheel aircraft variant
 
 ## 9. Risks and Pitfalls
 
@@ -156,15 +166,15 @@ res://
 - Cargo weight and balance: overloading is tempting but dangerous.
 - Fuel planning: remote strips with no fuel force range decisions.
 - Wear and maintenance: one crash should set the player back economically.
-- Landing damage design: no landing report screens. Landing wear accumulates silently via the Touchdown event. A mechanic NPC mentions it vaguely at repair time (“looks like you had some hard landings recently, that’ll cost you X”).
+- Landing damage design: no landing report screens. Landing wear accumulates silently via the `Touchdown` event. A mechanic NPC mentions it vaguely at repair time ("looks like you had some hard landings recently, that'll cost you X"). The HUD landing line is debug-only and should be hidden behind a debug toggle later.
 
 ## 11. Progress Log (update as you go)
 
 | Phase | Status | Notes |
 |------|--------|-------|
-| 1 | Complete | |
-| 2-3 | Not started | |
-| 4 | Not started | |
+| 1 | Complete | World built in code from `Main.cs`; input actions registered in code; chase/cockpit cameras; debug HUD. |
+| 2-3 | Complete | Full force-based flight model, tuned by feel. Stall has nose-drop moment, hysteresis and heavy post-stall drag. To be re-tuned once terrain exists. |
+| 4 | Complete (step 5 untested) | Raycast-spring suspension, tyre friction, brakes, nose-wheel steering, takeoff verified, landing tracking via `Touchdown` event. Step 5 (ground effect and propwash) was written but not yet confirmed in testing. |
 | 5 | Not started | |
 | 6 | Not started | |
 | 7 | Not started | |
@@ -175,20 +185,63 @@ res://
 | 12 | Not started | |
 
 **Current issues / questions:**
--
+- Confirm ground effect and propwash behave as expected (parked full-throttle tail speed about 20 m/s, no twitching; noticeably longer float in the flare).
+- Possible later tweaks: climb rate (lower `EnginePower` toward 140000 if too strong), pitch trim control.
 
-**Key tuning values found so far (mass, wing area, CL max, etc.):**
--Aircraft mass: 1100kg
--Camera chase rate: 5f
--Aircraft control response rate: 4f
+**Key tuning values found so far:**
+Defaults are as given in the tutorial. The user has tuned some by feel, so check their current inspector values.
 
-## 12. How to Resume in a New Chat
+- Aircraft mass: 1100kg
+- Camera chase rate: 5f
+- Aircraft control response rate: 4f
+- Inertia (pitch X, yaw Y, roll Z): (1825, 2667, 1285) kg·m²
+- Engine: `EnginePower` 170000 W, `PropEfficiency` 0.8, `StaticThrust` 3000 N
+- Wing: `WingArea` 16, `CL0` 0.3, `CLSlope` 5, `CD0` 0.04, `InducedDragK` 0.055, `IdlePropDrag` 0.012
+- Stall: `StallAoADeg` 15, `StallBlendDeg` 6, `StallWarnMarginDeg` 3, `BuffetStrength` 2, `StallNoseDrop` 4, `StallDragGain` 3.5, `StallHysteresisDeg` 5, post-stall CL scale 0.7 (hard-coded in `Aero.LiftCoefficient`)
+- Flaps: `FlapCL0Gain` 0.5, `FlapCD0Gain` 0.035, `FlapStallReductionDeg` 2, `FlapTrimShiftDeg` 3, `FlapSpeed` 0.4
+- Trim: `TrimAoADeg` 1.5
+- Control authority: Elevator 5.5, Aileron 4, Rudder 3
+- Stability: Pitch 14, Yaw 10, Roll 5
+- Damping: Pitch 10, Roll 6.5, Yaw 7
+- Gear: `SuspensionLength` 0.6, `WheelRadius` 0.35, mains stiffness 22500 / damping 4000, nose stiffness 9000 / damping 1600
+- Tyres: `TireGrip` 4000, `TireMu` 0.8, `RollingResistance` 0.03, `BrakeMu` 0.6, `MaxSteerDeg` 35
+- Ground effect and propwash: `GroundEffectStrength` 2, `GroundLiftGain` 0.3, `PropDiscArea` 3.1, `PropwashFactor` 1
+- Landing grades (sink rate, m/s): Smooth <1, Good <2, Firm <3, Hard <4.5, Crash above
+
+## 12. Current Code State (for resuming)
+
+**Scripts in `res://scripts/`:**
+- `Main.cs`: builds the world in code (sky, light, ground, pillars, runway), spawns aircraft at (0, 1.5, 300), camera rig, HUD.
+- `InputSetup.cs`: static class registering all actions.
+- `AircraftInput.cs`: smoothed Pitch/Roll/Yaw, rate-based Throttle, Brake, Flaps (0-3).
+- `AirData.cs`: struct computing relative velocity, local velocity, airspeed, AoA, sideslip.
+- `Aero.cs`: dynamic pressure, lift/drag coefficients, stall factor.
+- `Propulsion.cs`: thrust from power and static limit.
+- `Wheel.cs`: wheel data class (setup plus live state).
+- `TouchdownReport.cs`: `LandingGrade` enum, `TouchdownReport` struct, `Landing.GradeFor`.
+- `Aircraft.cs`: `RigidBody3D` with all force/torque methods.
+- `CameraRig.cs`: chase and cockpit cameras.
+- `DebugHud.cs`: text readout.
+
+**Conventions:**
+- Aircraft forward = **-Z**, right = +X, up = +Y.
+- Pitch +1 = nose up. Roll +1 = right wing down. Yaw +1 = nose right. Roll and yaw need a negative sign in torque/rotation maths.
+- AoA positive when the airflow hits the belly. Sideslip positive when drifting right.
+- Centre of mass pinned to the origin, so `GlobalPosition` is the CoM.
+
+**`Aircraft._PhysicsProcess` order:** reset keys, `AirData.Compute`, (debug free-fly returns early), `UpdateFlaps`, `ApplySuspension`, `TrackLanding`, `ApplyTireForces`, `ApplyThrust`, `UpdateGroundEffect`, `ApplyAerodynamics`, `ApplyControlTorques`, `ApplyBuffet`.
+
+**Controls:** W/S pitch, A/D roll, Q/E yaw and nose-wheel steering, Shift/Ctrl throttle, F/R flaps down/up, Space brake, C camera toggle, Backspace reset to runway, Delete reset in air (300 m, 45 m/s). Gamepad equivalents bound.
+
+**Events:** `Aircraft.Touchdown` (`TouchdownReport`) fires after each landing. Phase 8's wear tracker should subscribe to it.
+
+## 13. How to Resume in a New Chat
 
 Upload this file and paste something like:
 
-> Context is in the attached file. I'm on **Phase N**. Current status: [what works / what's broken]. Here's my relevant code: [paste or attach]. Help me with [specific task].
+> Context is in the attached file. I'm on **Phase N**. Current status: [what works / what's broken]. Here's my relevant code: [paste or attach]. Help me with [specific task]. Continue in tutorial format: one step at a time, I type the code.
 
 Tips:
-- Include the relevant scripts (e.g. `FlightModel.cs`) so Claude doesn't guess at your structure.
+- Include the relevant scripts (e.g. `Aircraft.cs`) so Claude doesn't guess at your structure.
 - Include error messages and the Godot version.
 - Update the Progress Log and tuning values before uploading again.
