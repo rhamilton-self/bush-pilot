@@ -156,6 +156,7 @@ res://
 - Cargo weight and balance: overloading is tempting but dangerous.
 - Fuel planning: remote strips with no fuel force range decisions.
 - Wear and maintenance: one crash should set the player back economically.
+- Landing damage design: no landing report screens. Landing wear accumulates silently via the Touchdown event. A mechanic NPC mentions it vaguely at repair time (“looks like you had some hard landings recently, that’ll cost you X”).
 
 ## 11. Progress Log (update as you go)
 

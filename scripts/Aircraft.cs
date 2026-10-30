@@ -56,6 +56,15 @@ public partial class Aircraft : RigidBody3D
     [Export] public float BrakeMu = 0.6f;
     [Export] public float MaxSteerDeg = 35f;
 
+    [Export] public float WingSpan = 11f;
+    [Export] public float GroundEffectStrength = 2f;
+    [Export] public float GroundLiftGain = 0.3f;
+    [Export] public float PropDiscArea = 3.1f; //m^2 - about 2m diameter
+    [Export] public float PropwashFactor = 1f;
+
+    public float GroundEffect { get; private set; } //0 = none, higher = stronger
+    float _groundFactor = 1f; //induced drag multiplier
+
     readonly List<Wheel> _wheels = new List<Wheel>();
     Godot.Collections.Array<Rid> _rayExclude;
 
@@ -78,6 +87,18 @@ public partial class Aircraft : RigidBody3D
 
     bool _resetRequested;
     bool _resetToRunway;
+
+    public event System.Action<TouchdownReport> Touchdown;
+    public TouchdownReport? LastTouchdown { get; private set; }
+
+    const float Gravity = 9.81f;
+
+    bool _wasOnGround;
+    float _airTime;
+    float _impactTimer;
+    float _peakLoad;
+    float _tdSink;
+    float _tdSpeed;
 
     public bool OnGround
     {
@@ -178,8 +199,10 @@ public partial class Aircraft : RigidBody3D
 
         UpdateFlaps((float)delta);
         ApplySuspension();
+        TrackLanding((float)delta);
         ApplyTireForces();
         ApplyThrust();
+        UpdateGroundEffect();
         ApplyAerodynamics();
         ApplyControlTorques();
         ApplyBuffet();
@@ -233,9 +256,10 @@ public partial class Aircraft : RigidBody3D
         else if (absAoA < stallAoA - hyst) _stalled = false;
         float activeStall = _stalled ? stallAoA - hyst : stallAoA;
 
-        CL = Aero.LiftCoefficient(Air.AoA, cl0, CLSlope, activeStall, blend);
+        float slope = CLSlope * (1f + GroundLiftGain * GroundEffect);
+        CL = Aero.LiftCoefficient(Air.AoA, cl0, slope, activeStall, blend);
         StallFactor = Aero.StallFactor(Air.AoA, activeStall, blend);
-        float cd = Aero.DragCoefficient(CL, cd0, InducedDragK, Air.AoA, StallFactor, StallDragGain);
+        float cd = Aero.DragCoefficient(CL, cd0, InducedDragK * _groundFactor, Air.AoA, StallFactor, StallDragGain);
 
         StallWarning = Air.AoA > stallAoA - Mathf.DegToRad(StallWarnMarginDeg);
 
@@ -251,14 +275,23 @@ public partial class Aircraft : RigidBody3D
     void ApplyControlTorques()
     {
         float q = Aero.DynamicPressure(Air.Airspeed);
-        Vector3 w = GlobalBasis.Inverse() * AngularVelocity; //rotation rates in the aircraft's own axes
+        float qTail = Aero.DynamicPressure(TailAirspeed());
+        float conf = Mathf.Clamp(Air.Airspeed / 8f, 0f, 1f);
+
+        Vector3 w = GlobalBasis.Inverse() * AngularVelocity;
         float trim = Mathf.DegToRad(TrimAoADeg - FlapTrimShiftDeg * FlapPosition);
 
         var torque = new Vector3(
-            q * (Controls.Pitch * ElevatorAuthority - (Air.AoA - trim) * PitchStability - w.X * PitchDamping
-                - Mathf.Sign(Air.AoA) * StallFactor * StallNoseDrop),            
-            q * (-Controls.Yaw * RudderAuthority - Air.Sideslip * YawStability - w.Y * YawDamping),
-            q * (-Controls.Roll * AileronAuthority + Air.Sideslip * RollStability - w.Z * RollDamping));
+            qTail * (Controls.Pitch * ElevatorAuthority
+                    - conf * (Air.AoA - trim) * PitchStability
+                    - w.X * PitchDamping
+                    - conf * Mathf.Sign(Air.AoA) * StallFactor * StallNoseDrop),
+            qTail * (-Controls.Yaw * RudderAuthority
+                    - conf * Air.Sideslip * YawStability
+                    - w.Y * YawDamping),
+            q * (-Controls.Roll * AileronAuthority
+                + conf * Air.Sideslip * RollStability
+                - w.Z * RollDamping));
 
         ApplyTorque(GlobalBasis * torque);
     }
@@ -368,5 +401,76 @@ public partial class Aircraft : RigidBody3D
         state.Transform = new Transform3D(Basis.Identity, pos);
         state.LinearVelocity = vel;
         state.AngularVelocity = Vector3.Zero;
+    }
+
+    void TrackLanding(float dt)
+    {
+        bool onGround = OnGround;
+
+        if (onGround && !_wasOnGround && _airTime > 0.5f)
+        {
+            _tdSink = Mathf.Max(0f, -LinearVelocity.Y);
+            _tdSpeed = LinearVelocity.Length();
+            _impactTimer = 0.4f;
+            _peakLoad = 0f;
+        }
+
+        if (onGround) _airTime = 0f;
+        else _airTime += dt;
+
+        if (_impactTimer > 0f)
+        {
+            float total = 0f;
+            foreach (var w in _wheels) total += w.Load;
+            _peakLoad = Mathf.Max(_peakLoad, total);
+
+            _impactTimer -= dt;
+            if (_impactTimer <= 0f)
+            {
+                var report = new TouchdownReport
+                {
+                    SinkRate = _tdSink,
+                    GroundSpeed = _tdSpeed,
+                    PeakG = _peakLoad / (Mass * Gravity),
+                    Grade = Landing.GradeFor(_tdSink)
+                };
+                LastTouchdown = report;
+                Touchdown?.Invoke(report);
+                GD.Print($"Touchdown: {report.Grade}, sink {report.SinkRate:0.0} m/s, {report.PeakG:0.0} g");
+            }
+        }
+
+        _wasOnGround = onGround;
+    }
+
+    void UpdateGroundEffect()
+    {
+        var space = GetWorld3D().DirectSpaceState;
+        var query = PhysicsRayQueryParameters3D.Create(
+            GlobalPosition, GlobalPosition + Vector3.Down * WingSpan);
+        query.Exclude = _rayExclude;
+        var hit = space.IntersectRay(query);
+
+        if (hit.Count == 0)
+        {
+            _groundFactor = 1f;
+            GroundEffect = 0f;
+            return;
+        }
+
+        float h = GlobalPosition.DistanceTo((Vector3)hit["position"]) + 0.3f;
+        float x = 16f * h / WingSpan;
+        float textbook = x * x / (1f + x * x); //1 = no effect
+
+        _groundFactor = Mathf.Max(1f - GroundEffectStrength * (1f - textbook), 0.3f);
+        GroundEffect = 1f - _groundFactor;
+    }
+
+    public float TailAirspeed()
+    {
+        float v = Mathf.Max(-Air.LocalVelocity.Z, 0f);
+        float half = v * 0.5f;
+        float vi = Mathf.Sqrt(Thrust / (2f * Aero.AirDensity * PropDiscArea) + half * half) - half;
+        return Air.Airspeed + PropwashFactor * vi;
     }
 }

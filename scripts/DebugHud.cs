@@ -28,6 +28,9 @@ public partial class DebugHud : CanvasLayer
             $"Gear (N) {gear}\n" +
             $"Gnd spd  {Aircraft.LinearVelocity.Length(),6:0.0} m/s\n" +
             $"On ground {(Aircraft.OnGround ? "yes" : "no")}\n" +
+            $"Landing  {(Aircraft.LastTouchdown is TouchdownReport t ? $"{t.Grade}  {t.SinkRate:0.0} m/s ({t.SinkRate * 196.85f:0} fpm)  {t.PeakG:0.0} g" : "-")}\n" +
+            $"Ground eff {Aircraft.GroundEffect,5:0.00}\n" +
+            $"Tail spd   {Aircraft.TailAirspeed() + 0,5:0.0} m/s\n" +
             $"Altitude {Aircraft.GlobalPosition.Y,6:0} m\n" +
             $"Airspeed {Aircraft.Air.Airspeed,6:0.0} m/s\n" +
             $"Thrust   {Aircraft.Thrust,6:0} N\n" +
