@@ -113,6 +113,7 @@ public partial class Aircraft : RigidBody3D
     public override void _Ready()
     {
         Mass = 1100f;
+        ContinuousCd = true;
 
         Controls = new AircraftInput();
         AddChild(Controls);

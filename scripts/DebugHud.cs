@@ -11,7 +11,7 @@ public partial class DebugHud : CanvasLayer
         _label.AddThemeFontSizeOverride("font_size", 18);
         AddChild(_label);
     }
-
+    
     public override void _Process(double delta)
     {
         var c = Aircraft.Controls;

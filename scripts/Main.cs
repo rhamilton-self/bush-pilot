@@ -4,12 +4,40 @@ public partial class Main : Node3D
 {
     public override void _Ready()
 	{
+		var terrain = new TerrainHeight(1234);
+		terrain.AddPad(new Pad
+		{
+			Center = new Vector2(0,0),
+			Yaw = 0f,
+			HalfLength = 400f,
+			HalfWidth = 40f,
+			Height = 0f,
+			Slope = 0f,
+			Blend = 150f
+		});
+
+		var terrainNode = new Terrain();
+		AddChild(terrainNode);
+		terrainNode.Build(terrain);
+
+		float min = float.MaxValue, max = float.MinValue, sum = 0f;
+		int count = 0;
+		for (float x = -2000f; x <= 2000f; x += 40f)
+		{	
+			for (float z = -2000f; z <= 2000f; z += 40f)
+			{
+				float h = terrain.Height(x, z);
+				min = Mathf.Min(min, h);
+				max = Mathf.Max(max, h);
+				sum += h;
+				count ++;
+			}
+		}
+
 		InputSetup.Register();
 		BuildEnvironment();
-		BuildGround();
 		BuildRunway();
-		BuildPillars();
-		
+				
 		var aircraft = new Aircraft { Position = new Vector3(0, 1.5f, 300) };
 		AddChild(aircraft);
 
@@ -44,12 +72,6 @@ public partial class Main : Node3D
 			Position = new Vector3(0, -0.5f, 0)
 		});
 
-		ground.AddChild(new MeshInstance3D
-		{
-			Mesh = new PlaneMesh { Size = new Vector2(6000, 6000) },
-			MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.35f, 0.5f, 0.3f)}
-		});
-
 		AddChild(ground);
 	}
 
@@ -81,7 +103,7 @@ public partial class Main : Node3D
 		AddChild(new MeshInstance3D
 		{
 			Mesh = new PlaneMesh { Size = new Vector2(20, 700) },
-			Position = new Vector3(0, 0.02f, 0),
+			Position = new Vector3(0, 0.05f, 0),
 			MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.2f, 0.2f, 0.22f) }
 		});
 
@@ -91,7 +113,7 @@ public partial class Main : Node3D
 			AddChild(new MeshInstance3D
 			{
 				Mesh = new PlaneMesh { Size = new Vector2(0.6f, 8f)},
-				Position = new Vector3(0, 0.03f, i * 20f),
+				Position = new Vector3(0, 0.06f, i * 20f),
 				MaterialOverride = paint
 			});
 		}
