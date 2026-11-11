@@ -100,6 +100,9 @@ public partial class Aircraft : RigidBody3D
     float _tdSink;
     float _tdSpeed;
 
+    public Transform3D RunwayStart = new Transform3D(Basis.Identity, new Vector3(0f, 1.3f, 300f));
+    public Transform3D AirStart = new Transform3D(Basis.Identity, new Vector3(0f, 300f, 0f));
+
     public bool OnGround
     {
         get
@@ -396,11 +399,9 @@ public partial class Aircraft : RigidBody3D
         if (!_resetRequested) return;
         _resetRequested = false;
 
-        Vector3 pos = _resetToRunway ? new Vector3(0, 1.3f, 300) : new Vector3(0,300,0);
-        Vector3 vel = _resetToRunway ? Vector3.Zero : new Vector3(0, 0, -45f);
-
-        state.Transform = new Transform3D(Basis.Identity, pos);
-        state.LinearVelocity = vel;
+        Transform3D t = _resetToRunway ? RunwayStart : AirStart;
+        state.Transform = t;
+        state.LinearVelocity = _resetToRunway ? Vector3.Zero : -t.Basis.Z * 45f;
         state.AngularVelocity = Vector3.Zero;
     }
 

@@ -14,10 +14,10 @@ public partial class CameraRig : Node3D
 
     public override void _Ready()
     {
-        _chase = new Camera3D { TopLevel = true, Far = 8000f };
+        _chase = new Camera3D { TopLevel = true, Far = 12000f };
         AddChild(_chase);
 
-        _cockpit = new Camera3D { Position = CockpitOffset, Far = 8000f, Fov = 80f };
+        _cockpit = new Camera3D { Position = CockpitOffset, Far = 12000f, Fov = 80f };
         Target.AddChild(_cockpit);
 
         _chase.GlobalPosition = Target.GlobalTransform * ChaseOffset;

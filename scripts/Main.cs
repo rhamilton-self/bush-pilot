@@ -2,43 +2,35 @@ using Godot;
 
 public partial class Main : Node3D
 {
-    public override void _Ready()
+	public override void _Ready()
 	{
-		var terrain = new TerrainHeight(1234);
-		terrain.AddPad(new Pad
+		InputSetup.Register();
+		BuildEnvironment();
+		BuildWater();
+
+		var terrain = new TerrainHeight(290996);
+
+		var home = new Airstrip
 		{
-			Center = new Vector2(0,0),
-			Yaw = 0f,
-			HalfLength = 400f,
-			HalfWidth = 40f,
-			Height = 0f,
-			Slope = 0f,
-			Blend = 150f
-		});
+			StripName = "Home Strip",
+			Position = new Vector3(0f, 0f, 0f),
+			Length = 800f,
+			Width = 20f
+		};
+		terrain.AddPad(home.ToPad());
 
 		var terrainNode = new Terrain();
 		AddChild(terrainNode);
 		terrainNode.Build(terrain);
 
-		float min = float.MaxValue, max = float.MinValue, sum = 0f;
-		int count = 0;
-		for (float x = -2000f; x <= 2000f; x += 40f)
-		{	
-			for (float z = -2000f; z <= 2000f; z += 40f)
-			{
-				float h = terrain.Height(x, z);
-				min = Mathf.Min(min, h);
-				max = Mathf.Max(max, h);
-				sum += h;
-				count ++;
-			}
-		}
+		AddChild(home);
 
-		InputSetup.Register();
-		BuildEnvironment();
-		BuildRunway();
-				
-		var aircraft = new Aircraft { Position = new Vector3(0, 1.5f, 300) };
+		var aircraft = new Aircraft
+		{
+			RunwayStart = home.StartTransform(),
+			AirStart = home.AirTransform(250f)
+		};
+		aircraft.Transform = aircraft.RunwayStart;
 		AddChild(aircraft);
 
 		AddChild(new CameraRig { Target = aircraft });
@@ -47,11 +39,22 @@ public partial class Main : Node3D
 
 	void BuildEnvironment()
 	{
+		var horizon = new Color(0.65f, 0.73f, 0.82f);
+
 		var env = new Godot.Environment
 		{
 			BackgroundMode = Godot.Environment.BGMode.Sky,
-			Sky = new Sky { SkyMaterial = new ProceduralSkyMaterial() },
-			AmbientLightSource = Godot.Environment.AmbientSource.Sky
+			Sky = new Sky { 
+				SkyMaterial = new ProceduralSkyMaterial
+				{
+					SkyHorizonColor = horizon,
+					GroundHorizonColor = horizon
+				}
+			},
+			AmbientLightSource = Godot.Environment.AmbientSource.Sky,
+			FogEnabled = true,
+			FogLightColor = horizon,
+			FogDensity = 0.0002f
 		};
 		AddChild(new WorldEnvironment { Environment = env });
 
@@ -98,25 +101,24 @@ public partial class Main : Node3D
 		}
 	}
 
-	void BuildRunway()
+	void BuildWater()
 	{
 		AddChild(new MeshInstance3D
 		{
-			Mesh = new PlaneMesh { Size = new Vector2(20, 700) },
-			Position = new Vector3(0, 0.05f, 0),
-			MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.2f, 0.2f, 0.22f) }
-		});
-
-		var paint = new StandardMaterial3D { AlbedoColor = new Color(0.9f, 0.9f, 0.9f) };
-		for (int i = -16; i <= 16; i++)
-		{
-			AddChild(new MeshInstance3D
+			Mesh = new PlaneMesh { 
+				Size = new Vector2(40000, 40000),
+				SubdivideWidth = 199,
+				SubdivideDepth = 199
+			},
+			Position = new Vector3(0, TerrainHeight.WaterLevel, 0),
+			CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+			MaterialOverride = new StandardMaterial3D
 			{
-				Mesh = new PlaneMesh { Size = new Vector2(0.6f, 8f)},
-				Position = new Vector3(0, 0.06f, i * 20f),
-				MaterialOverride = paint
-			});
-		}
+				AlbedoColor = new Color(0.08f, 0.32f, 0.45f, 0.82f),
+				Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+				Roughness = 0.1f
+			}
+		});
 	}
 }
 

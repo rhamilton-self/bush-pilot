@@ -55,7 +55,7 @@ public class TerrainHeight
 
     public float Height(float x, float z)
     {
-        float h = Natural(x, z);
+        float h = Mathf.Lerp(Natural(x, z), -25f, EdgeFalloff(x, z));
 
         foreach (var p in _pads)
         {
@@ -78,5 +78,11 @@ public class TerrainHeight
         }
 
         return h;
+    }
+
+    static float EdgeFalloff(float x, float z)
+    {
+        float d = Mathf.Max(Mathf.Abs(x),  Mathf.Abs(z));
+        return Mathf.SmoothStep(0f, 1f, Mathf.Clamp((d - 1500f) / 548f, 0f, 1f));
     }
 }

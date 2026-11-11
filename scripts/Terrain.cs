@@ -105,6 +105,8 @@ public partial class Terrain : StaticBody3D
         c = c.Lerp(upland, Mathf.Clamp((h - 100f) / 120f, 0f, 1f));
         c = c.Lerp(snow, Mathf.Clamp((h - 270f) / 40f, 0f, 1f));
 
+        c = c.Lerp(new Color(0.18f, 0.28f, 0.30f), Mathf.Clamp((TerrainHeight.WaterLevel - h) / 20f, 0f, 1f));
+
         float steep = Mathf.Clamp((0.88f - normalY) / 0.18f, 0f, 1f);
         return c.Lerp(rock, steep);
     }
