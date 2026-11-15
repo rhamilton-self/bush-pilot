@@ -190,8 +190,8 @@ public partial class Aircraft : RigidBody3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (Input.IsActionJustPressed("reset_flight")) { _resetRequested = true; _resetToRunway = true; }
-        if (Input.IsActionJustPressed("reset_air")) { _resetRequested = true; _resetToRunway = false; }
+        if (Input.IsActionJustPressed("reset_flight")) RequestReset(true);
+        if (Input.IsActionJustPressed("reset_air"))    RequestReset(false);
         
         Air = AirData.Compute(GlobalBasis, LinearVelocity, Vector3.Zero);
 
@@ -210,6 +210,12 @@ public partial class Aircraft : RigidBody3D
         ApplyAerodynamics();
         ApplyControlTorques();
         ApplyBuffet();
+    }
+
+    public void RequestReset(bool toRunway)
+    {
+        _resetRequested = true;
+        _resetToRunway = toRunway;
     }
 
     void DebugFly(double delta)

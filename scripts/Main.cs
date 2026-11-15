@@ -1,7 +1,33 @@
 using Godot;
+using System.Collections.Generic;
 
 public partial class Main : Node3D
 {
+	readonly List<Airstrip> _strips = new();
+	int _stripIndex;
+	Aircraft _aircraft;
+
+	Airstrip AddStrip(TerrainHeight terrain, string name, float x, float z,
+		float headingDeg, float length, float width, float slope)
+	{
+		float natural = terrain.Natural(x, z);
+
+		var strip = new Airstrip
+		{
+			StripName = name,
+			Position = new Vector3(x, Mathf.Round(Mathf.Max(natural, 3f)), z),
+			HeadingDeg = headingDeg,
+			Length = length,
+			Width = width,
+			Slope = slope
+		};
+
+		terrain.AddPad(strip.ToPad());
+		_strips.Add(strip);
+    	GD.Print($"{name}: natural height {natural:0.0} m, strip elevation {strip.Position.Y:0} m");
+		return strip;
+	}
+
 	public override void _Ready()
 	{
 		InputSetup.Register();
@@ -10,31 +36,29 @@ public partial class Main : Node3D
 
 		var terrain = new TerrainHeight(290996);
 
-		var home = new Airstrip
-		{
-			StripName = "Home Strip",
-			Position = new Vector3(0f, 0f, 0f),
-			Length = 800f,
-			Width = 20f
-		};
-		terrain.AddPad(home.ToPad());
+		var home = AddStrip(terrain, "Home Strip", 0f, 0f, 0f, 800f, 20f, 0f);
+		PrintSurvey(terrain);
+
+		AddStrip(terrain, "Valley Strip", 700f, -1050f, 180f, 450f, 15f, 0.04f);
+		AddStrip(terrain, "Cove Strip", 1300f, 880f, 0f, 320f, 12f, 0f);
 
 		var terrainNode = new Terrain();
 		AddChild(terrainNode);
 		terrainNode.Build(terrain);
 
-		AddChild(home);
+		foreach (var strip in _strips)
+			AddChild(strip);
 
-		var aircraft = new Aircraft
+		_aircraft = new Aircraft
 		{
 			RunwayStart = home.StartTransform(),
 			AirStart = home.AirTransform(250f)
 		};
-		aircraft.Transform = aircraft.RunwayStart;
-		AddChild(aircraft);
+		_aircraft.Transform = _aircraft.RunwayStart;
+		AddChild(_aircraft);
 
-		AddChild(new CameraRig { Target = aircraft });
-		AddChild(new DebugHud { Aircraft = aircraft });
+		AddChild(new CameraRig { Target = _aircraft });
+		AddChild(new DebugHud { Aircraft = _aircraft });
 	}
 
 	void BuildEnvironment()
@@ -119,6 +143,42 @@ public partial class Main : Node3D
 				Roughness = 0.1f
 			}
 		});
+	}
+
+	static void PrintSurvey(TerrainHeight terrain)
+	{
+	    GD.Print("Survey. ~ sea  . <10m  - <40m  + <100m  # <200m  ^ higher.  Column = 64 m, row = 128 m, O = origin, top = north");
+		for (int rz = -15; rz <= 15; rz++)
+		{
+			var line = new System.Text.StringBuilder();
+			for (int cx = -30; cx <= 30; cx++)
+			{
+				float h = terrain.Height(cx * 64f, rz * 128f);
+				char c = h < TerrainHeight.WaterLevel ? '~'
+					: h < 10f ? '.'
+					: h < 40f ? '-'
+					: h < 100f ? '+'
+					: h < 200f ? '#'
+					: '^';
+				if (cx == 0 && rz == 0) c = 'O';
+				line.Append(c);
+			}
+			GD.Print($"{rz * 128,6} {line}");
+		}
+	}
+
+	public override void _Process(double delta)
+	{
+		if (!Input.IsActionJustPressed("next_strip")) return;
+
+		_stripIndex = (_stripIndex + 1) % _strips.Count;
+		var strip = _strips[_stripIndex];
+
+		_aircraft.RunwayStart = strip.StartTransform();
+		_aircraft.AirStart = strip.AirTransform(250f);
+		_aircraft.RequestReset(true);
+
+		GD.Print($"Spawn: {strip.StripName}");
 	}
 }
 
