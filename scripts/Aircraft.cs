@@ -62,6 +62,11 @@ public partial class Aircraft : RigidBody3D
     [Export] public float PropDiscArea = 3.1f; //m^2 - about 2m diameter
     [Export] public float PropwashFactor = 1f;
 
+    public WindField Wind;
+    public Vector3 WindNow { get; private set; }
+
+    public GameClock Clock;
+
     public float GroundEffect { get; private set; } //0 = none, higher = stronger
     float _groundFactor = 1f; //induced drag multiplier
 
@@ -193,7 +198,8 @@ public partial class Aircraft : RigidBody3D
         if (Input.IsActionJustPressed("reset_flight")) RequestReset(true);
         if (Input.IsActionJustPressed("reset_air"))    RequestReset(false);
         
-        Air = AirData.Compute(GlobalBasis, LinearVelocity, Vector3.Zero);
+        WindNow = (Wind != null && Clock != null) ? Wind.At(GlobalPosition, Clock.Time) : Vector3.Zero;
+        Air = AirData.Compute(GlobalBasis, LinearVelocity, WindNow);
 
         if (DebugFreeFly)
         {
@@ -291,13 +297,15 @@ public partial class Aircraft : RigidBody3D
         Vector3 w = GlobalBasis.Inverse() * AngularVelocity;
         float trim = Mathf.DegToRad(TrimAoADeg - FlapTrimShiftDeg * FlapPosition);
 
+        float groundHold = OnGround ? Mathf.Clamp(LinearVelocity.Length() / 8f, 0f, 1f) : 1f;
+
         var torque = new Vector3(
             qTail * (Controls.Pitch * ElevatorAuthority
                     - conf * (Air.AoA - trim) * PitchStability
                     - w.X * PitchDamping
                     - conf * Mathf.Sign(Air.AoA) * StallFactor * StallNoseDrop),
             qTail * (-Controls.Yaw * RudderAuthority
-                    - conf * Air.Sideslip * YawStability
+                    - conf * groundHold * Air.Sideslip * YawStability
                     - w.Y * YawDamping),
             q * (-Controls.Roll * AileronAuthority
                 + conf * Air.Sideslip * RollStability

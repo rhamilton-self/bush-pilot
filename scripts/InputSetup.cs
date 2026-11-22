@@ -24,6 +24,7 @@ public static class InputSetup
 		AddKey("look_right", Key.Right);
 		AddKey("look_up", Key.Up);
 		AddKey("look_down", Key.Down);
+		AddKey("time_skip", Key.T);
 
 		// Gamepad
 		AddAxis("pitch_up", JoyAxis.LeftY, 1f);      // stick back = nose up

@@ -6,6 +6,7 @@ public partial class Main : Node3D
 	readonly List<Airstrip> _strips = new();
 	int _stripIndex;
 	Aircraft _aircraft;
+	readonly GameClock _clock = new GameClock();
 
 	Airstrip AddStrip(TerrainHeight terrain, string name, float x, float z,
 		float headingDeg, float length, float width, float slope)
@@ -52,13 +53,15 @@ public partial class Main : Node3D
 		_aircraft = new Aircraft
 		{
 			RunwayStart = home.StartTransform(),
-			AirStart = home.AirTransform(250f)
+			AirStart = home.AirTransform(250f),
+			Wind = new WindField(1234),
+			Clock = _clock
 		};
 		_aircraft.Transform = _aircraft.RunwayStart;
 		AddChild(_aircraft);
 
 		AddChild(new CameraRig { Target = _aircraft });
-		AddChild(new DebugHud { Aircraft = _aircraft });
+		AddChild(new DebugHud { Aircraft = _aircraft, Clock = _clock });
 	}
 
 	void BuildEnvironment()
@@ -169,6 +172,7 @@ public partial class Main : Node3D
 
 	public override void _Process(double delta)
 	{
+		if (Input.IsActionJustPressed("time_skip")) _clock.Time += 3600.0;
 		if (!Input.IsActionJustPressed("next_strip")) return;
 
 		_stripIndex = (_stripIndex + 1) % _strips.Count;
@@ -180,5 +184,12 @@ public partial class Main : Node3D
 
 		GD.Print($"Spawn: {strip.StripName}");
 	}
+
+	public override void _PhysicsProcess(double delta)
+	{
+		_clock.Advance(delta);
+	}
+
+
 }
 
