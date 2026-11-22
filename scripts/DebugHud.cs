@@ -27,6 +27,10 @@ public partial class DebugHud : CanvasLayer
 
         Vector3 fwd = -Aircraft.GlobalBasis.Z;
         float heading = Mathf.PosMod(Mathf.RadToDeg(Mathf.Atan2(fwd.X, -fwd.Z)), 360f);
+        Vector3 gv = Aircraft.LinearVelocity;
+        float track = Mathf.PosMod(Mathf.RadToDeg(Mathf.Atan2(gv.X, -gv.Z)), 360f);
+        float drift = Mathf.Abs(new Vector2(gv.X, gv.Z).Length()) > 5f
+            ? Mathf.Wrap(track - heading, -180f, 180f) : 0f;
         float headwind = -wind.Dot(fwd);
         float crosswind = -wind.Dot(Aircraft.GlobalBasis.X);
 
@@ -54,8 +58,11 @@ public partial class DebugHud : CanvasLayer
             // $"Drag     {Aircraft.Drag,6:0} N\n" +
             // $"CL       {Aircraft.CL,6:0.00}\n" +
             $"Heading   {heading,5:0} deg\n" +
+            $"Weather   {Aircraft.Wind.PresetName}\n" +
             $"Wind      {windFrom,4:0} deg at {windSpeed,4:0.0} m/s\n" +
             $"Head/Xwnd {headwind,5:0.0} / {crosswind,5:0.0} m/s\n" +
+            $"Gust H/V  {new Vector2(Aircraft.GustNow.X, Aircraft.GustNow.Z).Length(),4:0.0} / {Aircraft.GustNow.Y,5:0.0} m/s\n" +
+            $"Drift     {drift,5:0} deg  (track {track,3:0})\n" +
             // $"Pitch att {Mathf.RadToDeg(Mathf.Asin(-Aircraft.GlobalBasis.Z.Y)),5:0} deg\n" +
             // $"Bank      {Mathf.RadToDeg(Mathf.Asin(-Aircraft.GlobalBasis.X.Y)),5:0} deg\n" +
             $"Stall     {Aircraft.StallFactor,5:0.00}   {(Aircraft.StallWarning ? "<< STALL WARNING >>" : "")}\n" +

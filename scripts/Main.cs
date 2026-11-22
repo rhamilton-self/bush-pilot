@@ -7,6 +7,8 @@ public partial class Main : Node3D
 	int _stripIndex;
 	Aircraft _aircraft;
 	readonly GameClock _clock = new GameClock();
+	readonly WindField _wind = new WindField(1234);
+	int _presetIndex;
 
 	Airstrip AddStrip(TerrainHeight terrain, string name, float x, float z,
 		float headingDeg, float length, float width, float slope)
@@ -20,7 +22,9 @@ public partial class Main : Node3D
 			HeadingDeg = headingDeg,
 			Length = length,
 			Width = width,
-			Slope = slope
+			Slope = slope,
+			Wind = _wind,
+			Clock = _clock,
 		};
 
 		terrain.AddPad(strip.ToPad());
@@ -54,11 +58,13 @@ public partial class Main : Node3D
 		{
 			RunwayStart = home.StartTransform(),
 			AirStart = home.AirTransform(250f),
-			Wind = new WindField(1234),
+			Wind = _wind,
 			Clock = _clock
 		};
 		_aircraft.Transform = _aircraft.RunwayStart;
 		AddChild(_aircraft);
+
+		ApplyPreset();
 
 		AddChild(new CameraRig { Target = _aircraft });
 		AddChild(new DebugHud { Aircraft = _aircraft, Clock = _clock });
@@ -172,6 +178,12 @@ public partial class Main : Node3D
 
 	public override void _Process(double delta)
 	{
+		if (Input.IsActionJustPressed("weather_next"))
+		{
+			_presetIndex = (_presetIndex + 1) % WeatherPreset.All.Length;
+			ApplyPreset();
+		}
+
 		if (Input.IsActionJustPressed("time_skip")) _clock.Time += 3600.0;
 		if (!Input.IsActionJustPressed("next_strip")) return;
 
@@ -190,6 +202,20 @@ public partial class Main : Node3D
 		_clock.Advance(delta);
 	}
 
+	void ApplyPreset()
+	{
+		var p = WeatherPreset.All[_presetIndex];
 
+		_wind.PresetName = p.Name;
+		_wind.Turbulence = p.Turbulence;
+		_wind.UseFixed = !p.Dynamic;
+
+		if (!p.Dynamic)
+		{
+			float baseHeading = p.RelativeToRunway ? _strips[_stripIndex].HeadingDeg : 0f;
+			_wind.FixedSpeed = p.Speed;
+			_wind.FixedFromDeg = Mathf.PosMod(baseHeading + p.FromDeg, 360f);
+		}
+	}
 }
 

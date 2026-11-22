@@ -64,6 +64,7 @@ public partial class Aircraft : RigidBody3D
 
     public WindField Wind;
     public Vector3 WindNow { get; private set; }
+    public Vector3 GustNow { get; private set; }
 
     public GameClock Clock;
 
@@ -198,7 +199,18 @@ public partial class Aircraft : RigidBody3D
         if (Input.IsActionJustPressed("reset_flight")) RequestReset(true);
         if (Input.IsActionJustPressed("reset_air"))    RequestReset(false);
         
-        WindNow = (Wind != null && Clock != null) ? Wind.At(GlobalPosition, Clock.Time) : Vector3.Zero;
+        if (Wind != null && Clock != null)
+        {
+            Vector3 mean = Wind.At(GlobalPosition, Clock.Time);
+            GustNow = Wind.Gust(GlobalPosition, Clock.RealSeconds, mean.Length()) * (OnGround ? 0.25f : 1f);
+            WindNow = mean + GustNow;
+        }
+        else
+        {
+            GustNow = Vector3.Zero;
+            WindNow = Vector3.Zero;
+        }
+
         Air = AirData.Compute(GlobalBasis, LinearVelocity, WindNow);
 
         if (DebugFreeFly)

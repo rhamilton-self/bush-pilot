@@ -25,6 +25,7 @@ public static class InputSetup
 		AddKey("look_up", Key.Up);
 		AddKey("look_down", Key.Down);
 		AddKey("time_skip", Key.T);
+		AddKey("weather_next", Key.Y);
 
 		// Gamepad
 		AddAxis("pitch_up", JoyAxis.LeftY, 1f);      // stick back = nose up
@@ -41,6 +42,7 @@ public static class InputSetup
 		AddButton("toggle_camera", JoyButton.Y);
 		AddButton("reset_flight", JoyButton.Back);
 		AddButton("next_strip", JoyButton.Start);
+		AddButton("weather_next", JoyButton.X);
 	}
 
 	static void Ensure(string action)

@@ -13,6 +13,9 @@ public partial class Airstrip : Node3D
 
     public float Yaw => -Mathf.DegToRad(HeadingDeg);
 
+    public WindField Wind;
+    public GameClock Clock;
+
     public Pad ToPad() => new Pad
     {
         Center = new Vector2(Position.X, Position.Z),
@@ -51,6 +54,19 @@ public partial class Airstrip : Node3D
 
         AddPaint(surface, paint, new Vector2(Width * 0.8f, 2f), -len / 2f + 4f);
         AddPaint(surface, paint, new Vector2(Width * 0.8f, 2f), len / 2f - 4f);
+
+        if (Wind != null && Clock != null)
+        {
+            foreach (float z in new[] { Length / 2f - 100f, -(Length / 2f - 100f) })
+            {
+                AddChild(new Windsock
+                {
+                    Wind = Wind,
+                    Clock = Clock,
+                    Position = new Vector3(Width / 2f + 12f, -Slope * z, z)
+                });
+            }
+        }
     }
 
     static void AddPaint(Node3D parent, Material mat, Vector2 size, float z)

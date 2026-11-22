@@ -11,6 +11,8 @@ public class GameClock
 
     public void Advance(double realDelta) => Time += realDelta * Scale;
 
+    public double RealSeconds => Time / Scale;
+
     public string Text
     {
         get
